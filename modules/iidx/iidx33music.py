@@ -3,7 +3,7 @@ import random
 from enum import IntEnum
 
 from fastapi import APIRouter, Request, Response
-from tinydb import where
+from core_database import where
 
 from core_common import core_process_request, core_prepare_response, E
 from core_database import get_db
@@ -51,10 +51,6 @@ async def iidx33music_getrank(request: Request):
         if iidxid == 0:
             continue
 
-        profile = db.table("iidx_profile").get(where("iidx_id") == iidxid)["version"][
-            str(game_version)
-        ]
-
         for record in db.table("iidx_scores_best").search(
             (where("music_id") < (game_version + 1) * 1000)
             & (where("play_style") == play_style)
@@ -80,11 +76,11 @@ async def iidx33music_getrank(request: Request):
             all_scores[rival_idx, music_id][chart_id]["miss_count"] = miss_count
 
     names = {}
-    profiles = get_db().table("iidx_profile")
+    profiles = get_db().table("iidx_profile").search(where("game_version") == game_version)
     for p in profiles:
         names[p["iidx_id"]] = {}
         try:
-            names[p["iidx_id"]]["name"] = p["version"][str(game_version)]["djname"]
+            names[p["iidx_id"]]["name"] = p.get("djname", "UNK")
         except KeyError:
             names[p["iidx_id"]]["name"] = "UNK"
 
@@ -336,12 +332,14 @@ async def iidx33music_reg(request: Request):
     ranklist_scores_ranked = []
 
     for score in ranklist_scores:
-        profile = db.table("iidx_profile").get(where("iidx_id") == score["iidx_id"])
+        profile = db.table("iidx_profile").get(
+            (where("iidx_id") == score["iidx_id"]) & (where("game_version") == game_version)
+        )
 
-        if profile is None or str(game_version) not in profile["version"]:
+        if profile is None:
             continue
 
-        game_profile = profile["version"][str(game_version)]
+        game_profile = profile
 
         ranklist_scores_ranked.append(
             {
@@ -469,9 +467,9 @@ async def iidx33music_appoint(request: Request):
             E.sdata(
                 sdata["ghost"],
                 score=sdata["ex_score"],
-                name=db.table("iidx_profile").get(where("iidx_id") == sdata["iidx_id"])[
-                    "version"
-                ][str(sdata["game_version"])]["djname"],
+                name=db.table("iidx_profile").get(
+                    (where("iidx_id") == sdata["iidx_id"]) & (where("game_version") == sdata["game_version"])
+                )["djname"],
                 pid=sdata["pid"],
                 __type="bin",
                 __size=len(sdata["ghost"]) // 2,

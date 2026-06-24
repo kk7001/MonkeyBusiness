@@ -1,7 +1,7 @@
 import random
 import time
 
-from tinydb import Query, where
+from core_database import Query, where
 
 import config
 
@@ -11,25 +11,18 @@ from core_common import core_process_request, core_prepare_response, E
 from core_database import get_db
 
 from base64 import b64decode, b64encode
+from modules.core.cardmng import get_profile
 
 router = APIRouter(prefix="/local2", tags=["local2"])
 router.model_whitelist = ["MDX"]
 
 
-def get_profile(cid):
-    return get_db().table("ddr_profile").get(where("card") == cid)
-
-
-def get_game_profile(cid, game_version):
-    profile = get_profile(cid)
-
-    return profile["version"].get(str(game_version), None)
-
-
 def get_common(ddr_id, game_version, idx):
-    profile = get_db().table("ddr_profile").get(where("ddr_id") == int(ddr_id))
+    profile = get_db().table("ddr_profile").get(
+        (where("ddr_id") == int(ddr_id)) & (where("game_version") == game_version)
+    )
     if profile is not None:
-        return profile["version"].get(str(game_version), None)["common"].split(",")[idx]
+        return profile["common"].split(",")[idx]
     else:
         return 0
 
@@ -50,19 +43,14 @@ async def playerdata_usergamedata_advanced(request: Request):
 
     db = get_db()
 
-    all_profiles_for_card = db.table("ddr_profile").get(Query().card == refid)
+    all_profiles_for_card = get_profile('MDX', game_version, refid)
 
     if mode == "usernew":
         shoparea = data.find("shoparea").text
 
-        if "ddr_id" not in all_profiles_for_card:
-            ddr_id = random.randint(10000000, 99999999)
-            all_profiles_for_card["ddr_id"] = ddr_id
-        else:
-            ddr_id = all_profiles_for_card["ddr_id"]
+        ddr_id = all_profiles_for_card["ddr_id"]
 
-        all_profiles_for_card["version"][str(game_version)] = {
-            "game_version": game_version,
+        all_profiles_for_card.update({
             "calories_disp": "Off",
             "character": "All Character Random",
             "arrow_skin": "Normal",
@@ -75,9 +63,12 @@ async def playerdata_usergamedata_advanced(request: Request):
             "rival_3_ddr_id": 0,
             "single_grade": 0,
             "double_grade": 0,
-        }
+        })
 
-        db.table("ddr_profile").upsert(all_profiles_for_card, where("card") == refid)
+        db.table("ddr_profile").upsert(
+            all_profiles_for_card,
+            (where("card") == refid) & (where("game_version") == game_version),
+        )
 
         response = E.response(
             E.playerdata(
@@ -92,10 +83,9 @@ async def playerdata_usergamedata_advanced(request: Request):
         all_scores = {}
         if all_profiles_for_card is not None:
             ddr_id = all_profiles_for_card["ddr_id"]
-            profile = get_game_profile(refid, game_version)
 
-            single_grade = profile.get("single_grade", 0)
-            double_grade = profile.get("double_grade", 0)
+            single_grade = all_profiles_for_card.get("single_grade", 0)
+            double_grade = all_profiles_for_card.get("double_grade", 0)
 
             for record in db.table("ddr_scores_best").search(where("ddr_id") == ddr_id):
                 mcode = record["mcode"]
@@ -356,8 +346,7 @@ async def playerdata_usergamedata_advanced(request: Request):
         elif int(data.find("isgameover").text) == 1:
             single_grade = int(data.find("grade/single_grade").text)
             double_grade = int(data.find("grade/double_grade").text)
-            profile = get_profile(refid)
-            game_profile = profile["version"].get(str(game_version), {})
+            profile = get_profile('MDX', game_version, refid)
             # workaround to save the correct dan grade by using the course mcode
             # because omnimix force unlocks all dan courses with <grade __type="u8">1</grade> in coursedb.xml
             if is_omni:
@@ -373,15 +362,17 @@ async def playerdata_usergamedata_advanced(request: Request):
                         ):
                             double_grade = grade
 
-            game_profile["single_grade"] = max(
-                single_grade, game_profile.get("single_grade", single_grade)
+            profile["single_grade"] = max(
+                single_grade, profile.get("single_grade", 0)
             )
-            game_profile["double_grade"] = max(
-                double_grade, game_profile.get("double_grade", double_grade)
+            profile["double_grade"] = max(
+                double_grade, profile.get("double_grade", 0)
             )
 
-            profile["version"][str(game_version)] = game_profile
-            db.table("ddr_profile").upsert(profile, where("card") == refid)
+            db.table("ddr_profile").upsert(
+                profile,
+                (where("card") == refid) & (where("game_version") == game_version),
+            )
 
         response = E.response(
             E.playerdata(
@@ -481,15 +472,13 @@ async def playerdata_usergamedata_advanced(request: Request):
         load = []
         names = {}
 
-        profiles = get_db().table("ddr_profile")
+        profiles = get_db().table("ddr_profile").search(where("game_version") == game_version)
         for p in profiles:
             names[p["ddr_id"]] = {}
             try:
-                names[p["ddr_id"]]["name"] = p["version"][str(game_version)][
-                    "common"
-                ].split(",")[27]
+                names[p["ddr_id"]]["name"] = p["common"].split(",")[27]
                 names[p["ddr_id"]]["area"] = int(
-                    str(p["version"][str(game_version)]["common"].split(",")[3]), 16
+                    str(p["common"].split(",")[3]), 16
                 )
             except KeyError:
                 names[p["ddr_id"]]["name"] = "UNKNOWN"
@@ -555,12 +544,9 @@ async def playerdata_usergamedata_recv(request: Request):
 
     data = request_info["root"][0].find("data")
     cid = data.find("refid").text
-    profile = get_game_profile(cid, game_version)
+    profile = get_profile('MDX', game_version, cid)
 
-    db = get_db().table("ddr_profile")
-    all_profiles_for_card = db.get(Query().card == cid)
-
-    if all_profiles_for_card is None:
+    if "calories_disp" not in profile:
         load = [
             b64encode(
                 str.encode(
@@ -667,34 +653,34 @@ async def playerdata_usergamedata_send(request: Request):
     cid = data.find("refid").text
     num = int(data.find("datanum").text)
 
-    profile = get_profile(cid)
-    game_profile = profile["version"].get(str(game_version), {})
+    profile = get_profile('MDX', game_version, cid)
 
     if num == 1:
-        game_profile["common"] = b64decode(
+        profile["common"] = b64decode(
             data.find("record")[0].text.split("<bin1")[0]
         ).decode(encoding="utf-8", errors="ignore")
 
     elif num == 4:
-        game_profile["common"] = b64decode(
+        profile["common"] = b64decode(
             data.find("record")[0].text.split("<bin1")[0]
         ).decode(encoding="utf-8", errors="ignore")
-        game_profile["option"] = b64decode(
+        profile["option"] = b64decode(
             data.find("record")[1].text.split("<bin1")[0]
         ).decode(encoding="utf-8", errors="ignore")
-        game_profile["last"] = b64decode(
+        profile["last"] = b64decode(
             data.find("record")[2].text.split("<bin1")[0]
         ).decode(encoding="utf-8", errors="ignore")
-        game_profile["rival"] = b64decode(
+        profile["rival"] = b64decode(
             data.find("record")[3].text.split("<bin1")[0]
         ).decode(encoding="utf-8", errors="ignore")
         for r in ("rival_1_ddr_id", "rival_2_ddr_id", "rival_3_ddr_id"):
-            if r not in game_profile:
-                game_profile[r] = 0
+            if r not in profile:
+                profile[r] = 0
 
-    profile["version"][str(game_version)] = game_profile
-
-    get_db().table("ddr_profile").upsert(profile, where("card") == cid)
+    get_db().table("ddr_profile").upsert(
+        profile,
+        (where("card") == cid) & (where("game_version") == game_version),
+    )
 
     response = E.response(
         E.playerdata(

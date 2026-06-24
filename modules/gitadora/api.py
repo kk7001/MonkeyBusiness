@@ -2,12 +2,13 @@ from fastapi import APIRouter, Request, Response
 
 from core_common import core_process_request, core_prepare_response, E
 
-from tinydb import Query, where
+from core_database import Query, where
 from core_database import get_db
 from pydantic import BaseModel
 
 import config
 import utils.card as conv
+from modules.core.cardmng import set_card_pin
 
 
 router = APIRouter(prefix="/gfdm", tags=["api_gfdm"])
@@ -44,11 +45,14 @@ async def gfdm_profile_id_patch(gitadora_id: str, item: GFDM_Profile_Main_Items)
     )
 
     profile["card"] = item.card
-    profile["pin"] = item.pin
+    profile.pop("pin", None)  # PIN is now managed in unified paseli table
 
     get_db().table("gitadora_profile").upsert(
         profile, where("gitadora_id") == gitadora_id
     )
+
+    # Update PIN in unified paseli table
+    set_card_pin(profile["card"], item.pin)
     return Response(status_code=204)
 
 

@@ -3,9 +3,7 @@ import time
 from os import stat
 from shutil import copy
 
-from tinydb import TinyDB, where
-from tinydb.middlewares import CachingMiddleware
-from tinydb.storages import JSONStorage
+from core_database import SQLiteDB, where
 
 
 def delete_scores(user_id, game):
@@ -33,21 +31,12 @@ if __name__ == "__main__":
     parser.add_argument("-i", "--user_id", help="ex: 12345678", required=True)
     args = parser.parse_args()
 
-    storage = CachingMiddleware(JSONStorage)
-    storage.WRITE_CACHE_SIZE = 5000
-
-    infile = "db.json"
-    outfile = f"db_{round(time.time())}.json"
+    infile = "db.sqlite3"
+    outfile = f"db_{round(time.time())}.sqlite3"
 
     copy(infile, outfile)
 
-    db = TinyDB(
-        infile,
-        indent=2,
-        encoding="utf-8",
-        ensure_ascii=False,
-        storage=storage,
-    )
+    db = SQLiteDB(infile)
 
     start_size = stat(infile).st_size
 

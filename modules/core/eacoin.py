@@ -1,15 +1,17 @@
 import config
 
 from fastapi import APIRouter, Request, Response
-from tinydb import where
+from core_database import where
 
 from core_common import core_process_request, core_prepare_response, E
 from core_database import get_db
+from modules.core.paseli import get_balance, add_spend
 
 router = APIRouter(prefix="/core", tags=["eacoin"])
 
 sessid = 0
 payments = {}
+
 
 @router.post("/{gameinfo}/eacoin/checkin")
 async def eacoin_checkin(request: Request):
@@ -20,8 +22,7 @@ async def eacoin_checkin(request: Request):
     op = get_db().table("shop").get(where("pcbid") == pcbid)
     op = {} if op is None else op
 
-    bal = get_db().table("paseli").get(where("cardid") == cardid)
-    bal = {} if bal is None else bal
+    bal = get_balance(cardid)
 
     global sessid
     sessid += 1
@@ -33,7 +34,7 @@ async def eacoin_checkin(request: Request):
             E.acstatus(1, __type="u8"),
             E.acid(1, __type="str"),
             E.acname(op.get("opname", config.arcade), __type="str"),
-            E.balance(bal.get("balance", config.paseli), __type="s32"),
+            E.balance(bal, __type="s32"),
             E.sessid(sessid, __type="str"),
             E.inshopcharge(1, __type="u8"),
         )
@@ -62,7 +63,7 @@ async def eacoin_consume(request: Request):
     cardid = payments.get(sessid, None)
 
     # fallback if server is restarted mid-round for IIDX movie or gacha purchases
-    if cardid == None:
+    if cardid is None:
         response = E.response(
             E.eacoin(
                 E.acstatus(0, __type="u8"),
@@ -74,21 +75,7 @@ async def eacoin_consume(request: Request):
         response_body, response_headers = await core_prepare_response(request, response)
         return Response(content=response_body, headers=response_headers)
 
-    bal = get_db().table("paseli").get(where("cardid") == cardid)
-    if bal == None:
-        bal = {
-            "cardid": cardid,
-            "balance": config.paseli,
-            "total_spent": 0,
-        }
-
-    new_balance = bal["balance"] - payment
-
-    paseli_card = {
-        "cardid": cardid,
-        "balance": new_balance,
-        "total_spent": bal["total_spent"] + payment,
-    }
+    new_balance = add_spend(cardid, payment)
 
     response = E.response(
         E.eacoin(
@@ -97,11 +84,6 @@ async def eacoin_consume(request: Request):
             E.balance(new_balance, __type="s32"),
         )
     )
-
-    if new_balance < 1000 or new_balance > config.paseli:
-        paseli_card["balance"] = config.paseli
-
-    get_db().table("paseli").upsert(paseli_card, where("cardid") == cardid)
 
     # del payments[sessid]
 

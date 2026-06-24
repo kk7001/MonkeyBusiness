@@ -1,22 +1,12 @@
 import argparse
 import xml.etree.ElementTree as ET
 
-from tinydb import TinyDB, where
-from tinydb.middlewares import CachingMiddleware
-from tinydb.storages import JSONStorage
+from core_database import SQLiteDB, where
 
 
 def main(automap_xml, version, monkey_db, ddr_id):
-    storage = CachingMiddleware(JSONStorage)
-    storage.WRITE_CACHE_SIZE = 5000
-
-    db = TinyDB(
-        monkey_db,
-        indent=2,
-        encoding="utf-8",
-        ensure_ascii=False,
-        storage=storage,
-    )
+    monkey_db = monkey_db.replace(".json", ".sqlite3")
+    db = SQLiteDB(monkey_db)
 
     ddr_id = int(ddr_id.replace("-", ""))
 

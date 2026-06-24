@@ -1,4 +1,4 @@
-from tinydb import Query, where
+from core_database import Query, where
 
 from fastapi import APIRouter, Request, Response
 

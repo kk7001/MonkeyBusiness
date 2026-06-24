@@ -1,4 +1,4 @@
-from tinydb import Query, where
+from core_database import Query, where
 
 import random
 
@@ -85,6 +85,7 @@ async def gitadora_cardutil_regist(ver: str, request: Request):
         gitadora_id = random.randint(10000000, 99999999)
         all_profiles_for_card["gitadora_id"] = gitadora_id
 
+    all_profiles_for_card.setdefault("version", {})
     all_profiles_for_card["version"][str(game_version)] = {
         "game_version": game_version,
         "name": "kors k",
@@ -95,6 +96,7 @@ async def gitadora_cardutil_regist(ver: str, request: Request):
     }
 
     for game_type in ("drummania", "guitarfreaks"):
+        all_profiles_for_card.setdefault("version", {})
         all_profiles_for_card["version"][str(game_version)][game_type] = {
             "customdata_playstyle": [
                 0,

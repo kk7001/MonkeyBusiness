@@ -1,4 +1,4 @@
-from tinydb import Query, where
+from core_database import Query, where
 
 import time
 

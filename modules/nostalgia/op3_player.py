@@ -1,4 +1,4 @@
-from tinydb import Query, where
+from core_database import Query, where
 
 import random
 
@@ -42,6 +42,7 @@ async def op3_player_regist_playdata(request: Request):
         nostalgia_id = random.randint(10000000, 99999999)
         all_profiles_for_card["nostalgia_id"] = nostalgia_id
 
+    all_profiles_for_card.setdefault("version", {})
     all_profiles_for_card["version"][str(game_version)] = {
         "game_version": game_version,
         "name": name,

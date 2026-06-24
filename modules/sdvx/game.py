@@ -1,7 +1,7 @@
 import xml.etree.ElementTree as ET
 from os import path
 
-from tinydb import Query, where
+from core_database import Query, where
 
 import config
 import random
@@ -181,6 +181,7 @@ async def game_sv_new(ver: str, request: Request):
         sdvx_id = random.randint(10000000, 99999999)
         all_profiles_for_card["sdvx_id"] = sdvx_id
 
+    all_profiles_for_card.setdefault("version", {})
     all_profiles_for_card["version"][str(game_version)] = {
         "game_version": game_version,
         "name": name,

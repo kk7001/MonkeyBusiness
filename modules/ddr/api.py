@@ -2,13 +2,14 @@ from fastapi import APIRouter, Request, Response, File, UploadFile
 
 from core_common import core_process_request, core_prepare_response, E
 
-from tinydb import Query, where
+from core_database import Query, where
 from core_database import get_db
 from pydantic import BaseModel
 
 import config
 import utils.card as conv
 from utils.lz77 import lz77_decode
+from modules.core.cardmng import set_card_pin
 
 import lxml.etree as ET
 import json
@@ -71,9 +72,12 @@ async def ddr_profile_id_patch(ddr_id: str, item: DDR_Profile_Main_Items):
     profile = get_db().table("ddr_profile").get(where("ddr_id") == ddr_id)
 
     profile["card"] = item.card
-    profile["pin"] = item.pin
+    profile.pop("pin", None)  # PIN is now managed in unified paseli table
 
     get_db().table("ddr_profile").upsert(profile, where("ddr_id") == ddr_id)
+
+    # Update PIN in unified paseli table
+    set_card_pin(profile["card"], item.pin)
     return Response(status_code=204)
 
 

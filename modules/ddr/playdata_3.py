@@ -1,7 +1,7 @@
 import random
 import time
 
-from tinydb import Query, where
+from core_database import Query, where
 
 import config
 
@@ -12,19 +12,10 @@ from core_database import get_db
 
 from os import path
 import json
+from modules.core.cardmng import get_profile
 
 router = APIRouter(prefix="/local2", tags=["local2"])
 router.model_whitelist = ["MDX"]
-
-
-def get_profile(cid):
-    return get_db().table("ddr_profile").get(where("card") == cid)
-
-
-def get_game_profile(cid, game_version):
-    profile = get_profile(cid)
-
-    return profile["version"].get(str(game_version), None)
 
 
 mdb = {}
@@ -223,10 +214,9 @@ async def playdata_3_playerdata_load(request: Request):
 
     all_scores = {}
     if refid != default:
-        p = get_profile(refid)
+        p = get_profile('MDX', game_version, refid)
         if p is not None:
             ddr_id = p["ddr_id"]
-            profile = get_game_profile(refid, game_version)
 
             for record in get_db().table("ddr_scores_best").search(where("ddr_id") == ddr_id):
                 mcode = record["mcode"]
@@ -248,7 +238,6 @@ async def playdata_3_playerdata_load(request: Request):
                 )
     else:
         p = {}
-        profile = {}
 
     response = E.response(
         E.playdata_3(
@@ -259,15 +248,15 @@ async def playdata_3_playerdata_load(request: Request):
             E.is_locked(0, __type="bool"),
             E.common(
                 E.ddrcode(p.get("ddr_id", 0), __type="s32"),
-                E.dancername(profile.get("common_dancername", ""), __type="str"),
-                E.is_new(not profile, __type="bool"),
+                E.dancername(p.get("common_dancername", ""), __type="str"),
+                E.is_new(1 if "common_dancername" not in p else 0, __type="bool"),
                 E.is_registering(0, __type="bool"),
-                E.area(profile.get("common_area", 13), __type="s32"),
-                E.extrastar(profile.get("common_extrastar", 0), __type="s32"),
-                E.playcount(profile.get("common_playcount", 0), __type="s32"),
-                E.weight(profile.get("common_weight", 0), __type="s32"),
-                E.today_cal(profile.get("common_today_cal", 0), __type="u64"),
-                E.is_disp_weight(profile.get("common_is_disp_weight", 0), __type="bool"),
+                E.area(p.get("common_area", 13), __type="s32"),
+                E.extrastar(p.get("common_extrastar", 0), __type="s32"),
+                E.playcount(p.get("common_playcount", 0), __type="s32"),
+                E.weight(p.get("common_weight", 0), __type="s32"),
+                E.today_cal(p.get("common_today_cal", 0), __type="u64"),
+                E.is_disp_weight(p.get("common_is_disp_weight", 0), __type="bool"),
                 E.is_takeover(0, __type="bool"),
                 E.pre_playable_num(1, __type="s32"),
                 E.is_subscribed(1, __type="bool"),
@@ -277,7 +266,7 @@ async def playdata_3_playerdata_load(request: Request):
             *[
                 E(k,
                     *[
-                        E(v, profile.get(f"{k}_{v}", 0), __type=load_settings[k][v])
+                        E(v, p.get(f"{k}_{v}", 0), __type=load_settings[k][v])
                         for v in load_settings[k]
                     ],
                 )
@@ -286,7 +275,7 @@ async def playdata_3_playerdata_load(request: Request):
             *[
                 E.rival(
                     E.slot(i, __type="s32"),
-                    E.rivalcode(profile.get(f"rival_{i}_ddr_id", 0), __type="s32"),
+                    E.rivalcode(p.get(f"rival_{i}_ddr_id", 0), __type="s32"),
                 )
                 for i in range (1, 4)
             ],
@@ -294,14 +283,14 @@ async def playdata_3_playerdata_load(request: Request):
                 E.score(
                     E.mcode(int(mcode), __type="s32"),
                     *[
-                        E.score_single(E.score_str(all_scores[mcode][difficulty], __type="str")) 
+                        E.score_single(E.score_str(all_scores[mcode][difficulty], __type="str"))
                         for difficulty in all_scores[mcode] if difficulty < 5
                     ],
                     *[
                         E.score_double(E.score_str(all_scores[mcode][difficulty], __type="str"))
                         for difficulty in all_scores[mcode] if difficulty > 4
                     ],
-                    
+
                 )
                 for mcode in all_scores.keys()
             ],
@@ -323,11 +312,11 @@ async def playdata_3_playerdata_load(request: Request):
             *[
                 E.customize(
                     E.category(c, __type="s32"),
-                    E.key(profile["customize"][c][p], __type="s32"),
-                    E.pattern(p, __type="s32")
+                    E.key(p["customize"][c][pat], __type="s32"),
+                    E.pattern(pat, __type="s32")
                 )
-                for c in profile.get("customize", {})
-                for p in profile.get("customize", {}).get(c, {})
+                for c in p.get("customize", {})
+                for pat in p.get("customize", {}).get(c, {})
             ],
         )
     )
@@ -441,17 +430,26 @@ async def playdata_3_rivaldata_load(request: Request):
 
     profiles = db.table("ddr_profile")
     for p in profiles:
-        names[p["ddr_id"]] = {}
-        try:
-            names[p["ddr_id"]]["name"] = p["version"][str(20)]["common_dancername"]
-            names[p["ddr_id"]]["area"] = int(p["version"][str(20)]["common_area"])
-        except KeyError:
+        ddr_id = p["ddr_id"]
+        if ddr_id not in names:
+            names[ddr_id] = {}
+        gv = p.get("game_version")
+        if gv == 20:
             try:
-                names[p["ddr_id"]]["name"] = p["version"][str(19)]["common"].split(",")[27]
-                names[p["ddr_id"]]["area"] = int(str(p["version"][str(19)]["common"].split(",")[3]), 16)
-            except KeyError:
-                names[p["ddr_id"]]["name"] = "UNKNOWN"
-                names[p["ddr_id"]]["area"] = 13
+                names[ddr_id]["name"] = p["common_dancername"]
+                names[ddr_id]["area"] = int(p["common_area"])
+            except (KeyError, ValueError):
+                pass
+        elif gv == 19 and "name" not in names[ddr_id]:
+            try:
+                names[ddr_id]["name"] = p["common"].split(",")[27]
+                names[ddr_id]["area"] = int(str(p["common"].split(",")[3]), 16)
+            except (KeyError, ValueError, IndexError):
+                pass
+    for ddr_id in names:
+        if "name" not in names[ddr_id]:
+            names[ddr_id]["name"] = "UNKNOWN"
+            names[ddr_id]["area"] = 13
 
     for r in scores:
         diffi = r["difficulty"]
@@ -487,23 +485,20 @@ async def playdata_3_playerdata_new(request: Request):
     refid = data.find("refid").text
 
     db = get_db()
-    all_profiles_for_card = db.table("ddr_profile").get(Query().card == refid)
-    if "ddr_id" not in all_profiles_for_card:
-        ddr_id = random.randint(10000000, 99999999)
-        all_profiles_for_card["ddr_id"] = ddr_id
-    else:
-        ddr_id = all_profiles_for_card["ddr_id"]
-    tmp = {"game_version": game_version}
+    all_profiles_for_card = get_profile('MDX', game_version, refid)
+    ddr_id = all_profiles_for_card["ddr_id"]
     for k in load_settings:
         for v in load_settings[k]:
-            tmp[f"{k}_" + v] = 0
-    tmp["rival_1_ddr_id"] = 0
-    tmp["rival_2_ddr_id"] = 0
-    tmp["rival_3_ddr_id"] = 0
-    tmp["customize"] = customize_settings
-    all_profiles_for_card["version"][str(game_version)] = tmp
+            all_profiles_for_card[f"{k}_" + v] = 0
+    all_profiles_for_card["rival_1_ddr_id"] = 0
+    all_profiles_for_card["rival_2_ddr_id"] = 0
+    all_profiles_for_card["rival_3_ddr_id"] = 0
+    all_profiles_for_card["customize"] = customize_settings
 
-    db.table("ddr_profile").upsert(all_profiles_for_card, where("card") == refid)
+    db.table("ddr_profile").upsert(
+        all_profiles_for_card,
+        (where("card") == refid) & (where("game_version") == game_version),
+    )
 
 
     response = E.response(
@@ -530,8 +525,7 @@ async def playdata_3_playerdata_save(request: Request):
     refid = data.find("refid").text
     savekind = int(data.find("savekind").text)
 
-    profile = get_profile(refid)
-    game_profile = get_game_profile(refid, game_version)
+    profile = get_profile('MDX', game_version, refid)
 
     db = get_db()
 
@@ -541,15 +535,17 @@ async def playdata_3_playerdata_save(request: Request):
                 for v in load_settings[k]:
                     profile_setting = data.find(k).find(v)
                     if v == "playcount":
-                        game_profile["common_playcount"] += 1
+                        profile["common_playcount"] += 1
                     elif v.startswith("popup_subscribe"):
-                        game_profile["common_" + v] = "0"
+                        profile["common_" + v] = "0"
                     elif profile_setting is not None:
-                        game_profile[f"{k}_" + v] = profile_setting.text
-            if "customize" not in game_profile:
-                game_profile["customize"] = customize_settings
-            profile["version"][str(game_version)] = game_profile
-            get_db().table("ddr_profile").upsert(profile, where("card") == refid)
+                        profile[f"{k}_" + v] = profile_setting.text
+            if "customize" not in profile:
+                profile["customize"] = customize_settings
+            get_db().table("ddr_profile").upsert(
+                profile,
+                (where("card") == refid) & (where("game_version") == game_version),
+            )
 
         elif savekind == 2 and retrycnt == 0:
             timestamp = time.time()

@@ -1,4 +1,4 @@
-from tinydb import Query, where
+from core_database import Query, where
 
 import config
 import random
@@ -7,32 +7,26 @@ from fastapi import APIRouter, Request, Response
 
 from core_common import core_process_request, core_prepare_response, E
 from core_database import get_db
+from modules.core.cardmng import get_profile as cardmng_get_profile
 
 router = APIRouter(prefix="/local", tags=["local"])
 router.model_whitelist = ["LDJ", "KDZ", "JDZ"]
 
 
-def get_profile(cid):
-    return get_db().table("iidx_profile").get(where("card") == cid)
-
-
-def get_profile_by_id(iidx_id):
-    return get_db().table("iidx_profile").get(where("iidx_id") == iidx_id)
-
-
-def get_game_profile(cid, game_version):
-    profile = get_profile(cid)
-
-    return profile["version"].get(str(game_version), None)
+def get_game_profile(cid, game_version, model="LDJ"):
+    return cardmng_get_profile(model, game_version, cid)
 
 
 def get_id_from_profile(cid):
-    profile = get_db().table("iidx_profile").get(where("card") == cid)
-
-    djid = "%08d" % profile["iidx_id"]
+    profiles = get_db().table("iidx_profile").search(where("card") == cid)
+    iidx_id = 0
+    for p in profiles:
+        if p.get("iidx_id", 0) != 0:
+            iidx_id = p["iidx_id"]
+            break
+    djid = "%08d" % iidx_id
     djid_split = "-".join([djid[:4], djid[4:]])
-
-    return profile["iidx_id"], djid_split
+    return iidx_id, djid_split
 
 
 def calculate_folder_mask(profile):
@@ -55,7 +49,7 @@ async def pc_get(request: Request):
     game_version = request_info["game_version"]
 
     cid = request_info["root"][0].attrib["rid"]
-    profile = get_game_profile(cid, game_version)
+    profile = get_game_profile(cid, game_version, request_info["model"])
     djid, djid_split = get_id_from_profile(cid)
 
     if game_version == 20:
@@ -539,9 +533,9 @@ async def pc_save(request: Request):
 
     xid = int(root.attrib["iidxid"])
     clt = int(root.attrib["cltype"])
+    cid = root.attrib.get("cid", "")
 
-    profile = get_profile_by_id(xid)
-    game_profile = profile["version"].get(str(game_version), {})
+    game_profile = cardmng_get_profile(request_info["model"], game_version, cid)
 
     if clt == 0:
         game_profile["sach"] = root.attrib["achi"]
@@ -622,9 +616,9 @@ async def pc_save(request: Request):
         for g in grade.findall("g"):
             grade_values.append([int(x) for x in g.text.split(" ")])
 
-        profile["grade_single"] = int(grade.attrib["sgid"])
-        profile["grade_double"] = int(grade.attrib["dgid"])
-        profile["grade_values"] = grade_values
+        game_profile["grade_single"] = int(grade.attrib["sgid"])
+        game_profile["grade_double"] = int(grade.attrib["dgid"])
+        game_profile["grade_values"] = grade_values
 
     deller_amount = game_profile.get("deller", 0)
     commonboss = root.find("commonboss")
@@ -635,9 +629,10 @@ async def pc_save(request: Request):
     game_profile["spnum"] = game_profile.get("spnum", 0) + (1 if clt == 0 else 0)
     game_profile["dpnum"] = game_profile.get("dpnum", 0) + (1 if clt == 1 else 0)
 
-    profile["version"][str(game_version)] = game_profile
-
-    get_db().table("iidx_profile").upsert(profile, where("iidx_id") == xid)
+    get_db().table("iidx_profile").upsert(
+        game_profile,
+        (where("card") == game_profile["card"]) & (where("game_version") == game_version)
+    )
 
     response = E.response(E.pc(iidxid=xid, cltype=clt))
 
@@ -674,18 +669,27 @@ async def pc_reg(request: Request):
     pid = request_info["root"][0].attrib["pid"]
 
     db = get_db().table("iidx_profile")
-    all_profiles_for_card = db.get(Query().card == cid)
 
-    if all_profiles_for_card is None:
-        all_profiles_for_card = {"card": cid, "version": {}}
+    # Check if profile already exists for this (card, game_version)
+    existing = db.get((where("card") == cid) & (where("game_version") == game_version))
+    if existing is not None:
+        card, card_split = get_id_from_profile(cid)
+        response = E.response(E.pc(id=card, id_str=card_split))
+        response_body, response_headers = await core_prepare_response(request, response)
+        return Response(content=response_body, headers=response_headers)
 
-    if "iidx_id" not in all_profiles_for_card:
+    # Get or create iidx_id
+    any_profile = db.get(where("card") == cid)
+    if any_profile is not None and any_profile.get("iidx_id", 0) != 0:
+        iidx_id = any_profile["iidx_id"]
+    else:
         iidx_id = random.randint(10000000, 99999999)
-        all_profiles_for_card["iidx_id"] = iidx_id
 
     if game_version == 20:
-        all_profiles_for_card["version"][str(game_version)] = {
+        profile = {
+            "card": cid,
             "game_version": game_version,
+            "iidx_id": iidx_id,
             "djname": name,
             "region": int(pid),
             "head": 0,
@@ -766,8 +770,10 @@ async def pc_reg(request: Request):
             "_hide_rival_info": 1,
         }
     elif game_version == 19:
-        all_profiles_for_card["version"][str(game_version)] = {
+        profile = {
+            "card": cid,
             "game_version": game_version,
+            "iidx_id": iidx_id,
             "djname": name,
             "region": int(pid),
             "head": 0,
@@ -819,8 +825,10 @@ async def pc_reg(request: Request):
             "_hide_rival_info": 1,
         }
     elif game_version == 18:
-        all_profiles_for_card["version"][str(game_version)] = {
+        profile = {
+            "card": cid,
             "game_version": game_version,
+            "iidx_id": iidx_id,
             "djname": name,
             "region": int(pid),
             "frame": 0,
@@ -858,7 +866,7 @@ async def pc_reg(request: Request):
             "_hide_play_count": 0,
             "_hide_rival_info": 1,
         }
-    db.upsert(all_profiles_for_card, where("card") == cid)
+    db.upsert(profile, (where("card") == cid) & (where("game_version") == game_version))
 
     card, card_split = get_id_from_profile(cid)
 

@@ -2,7 +2,7 @@ from fastapi import APIRouter, Request, Response, File, UploadFile
 
 from core_common import core_process_request, core_prepare_response, E
 
-from tinydb import Query, where
+from core_database import Query, where
 from core_database import get_db
 from pydantic import BaseModel
 from typing import Optional
@@ -10,6 +10,7 @@ from typing import Optional
 import config
 import utils.card as conv
 import utils.musicdata_tool as mdt
+from modules.core.cardmng import set_card_pin
 
 import xml.etree.ElementTree as ET
 import json
@@ -97,10 +98,14 @@ async def iidx_profile_id_patch(iidx_id: str, item: IIDX_Profile_Main_Items):
     iidx_id = int("".join([i for i in iidx_id if i.isnumeric()]))
     profile = get_db().table("iidx_profile").get(where("iidx_id") == iidx_id)
 
-    profile["card"] = item.card
-    profile["pin"] = item.pin
+    if profile is not None:
+        profile["card"] = item.card
+        profile.pop("pin", None)  # PIN is now managed in unified paseli table
 
-    get_db().table("iidx_profile").upsert(profile, where("iidx_id") == iidx_id)
+        get_db().table("iidx_profile").upsert(profile, where("iidx_id") == iidx_id)
+
+        # Update PIN in unified paseli table
+        set_card_pin(profile["card"], item.pin)
     return Response(status_code=204)
 
 
@@ -112,8 +117,9 @@ async def iidx_profile_id_version_patch(
         # TODO: differentiate 18, 19, 20, 29, 30
         return Response(status_code=406)
     iidx_id = int("".join([i for i in iidx_id if i.isnumeric()]))
-    profile = get_db().table("iidx_profile").get(where("iidx_id") == iidx_id)
-    game_profile = profile["version"].get(str(version), {})
+    game_profile = get_db().table("iidx_profile").get(
+        (where("iidx_id") == iidx_id) & (where("game_version") == version)
+    )
 
     game_profile["djname"] = item.djname
     game_profile["region"] = item.region
@@ -172,8 +178,10 @@ async def iidx_profile_id_version_patch(
     game_profile["dp_rival_5_iidx_id"] = item.dp_rival_5_iidx_id
     game_profile["dp_rival_6_iidx_id"] = item.dp_rival_6_iidx_id
 
-    profile["version"][str(version)] = game_profile
-    get_db().table("iidx_profile").upsert(profile, where("iidx_id") == iidx_id)
+    get_db().table("iidx_profile").upsert(
+        game_profile,
+        (where("iidx_id") == iidx_id) & (where("game_version") == version)
+    )
     return Response(status_code=204)
 
 

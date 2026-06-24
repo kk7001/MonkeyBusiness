@@ -11,6 +11,9 @@ from utils.lz77 import lz77_decode, lz77_encode
 
 
 def _add_val_as_str(elm, val):
+    if val is None or val == "":
+        # v2: sanitize empty values for KBinXML
+        val = 0
     new_val = str(val)
 
     if elm is not None:
@@ -25,7 +28,10 @@ def _add_bool_as_str(elm, val):
 
 
 def _add_list_as_str(elm, vals):
-    new_val = " ".join([str(val) for val in vals])
+    clean = [str(v) if v != "" and v is not None else "0" for v in vals]
+    if not clean:
+        clean = ["0"]  # never produce empty string
+    new_val = " ".join(clean)
 
     if elm is not None:
         elm.text = new_val
@@ -46,14 +52,43 @@ def _prng():
 prng_init = _prng()
 
 
-E = ElementMaker(
+_raw_E = ElementMaker(
     typemap={
         int: _add_val_as_str,
         bool: _add_bool_as_str,
         list: _add_list_as_str,
         float: _add_val_as_str,
+        str: _add_val_as_str,
     }
 )
+
+
+class _SafeE:
+    """Wrapper that sanitizes all values before passing to lxml ElementMaker."""
+
+    def __call__(self, tag, *args, **kwargs):
+        safe_kwargs = {}
+        for k, v in kwargs.items():
+            if not isinstance(v, (list, dict, tuple, bytes)) and (v == "" or v is None):
+                v = 0
+            safe_kwargs[k] = v
+        return _raw_E(tag, *args, **safe_kwargs)
+
+    def __getattr__(self, tag):
+        raw_func = getattr(_raw_E, tag)
+
+        def _build(*args, **kwargs):
+            safe_kwargs = {}
+            for k, v in kwargs.items():
+                if not isinstance(v, (list, dict, tuple, bytes)) and (v == "" or v is None):
+                    v = 0
+                safe_kwargs[k] = v
+            return raw_func(*args, **safe_kwargs)
+
+        return _build
+
+
+E = _SafeE()
 
 
 async def core_get_game_version_from_software_version(software_version):
@@ -192,6 +227,14 @@ async def core_process_request(request):
 
 
 async def core_prepare_response(request, xml):
+    # Final sanitization: walk XML tree and fix any empty text nodes
+    for elm in xml.iter():
+        if elm.text == "":
+            elm.text = "0"
+        for k, v in list(elm.attrib.items()):
+            if v == "":
+                elm.attrib[k] = "0"
+
     binxml = KBinXML(xml)
 
     if request.is_binxml:

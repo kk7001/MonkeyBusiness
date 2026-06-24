@@ -1,7 +1,7 @@
 import config
 
 from fastapi import APIRouter, Request, Response
-from tinydb import where
+from core_database import where
 
 from core_common import core_process_request, core_prepare_response, E
 from core_database import get_db

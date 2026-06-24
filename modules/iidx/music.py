@@ -2,7 +2,7 @@ import time
 from enum import IntEnum
 
 from fastapi import APIRouter, Request, Response
-from tinydb import where
+from core_database import where
 
 from core_common import core_process_request, core_prepare_response, E
 from core_database import get_db
@@ -271,12 +271,14 @@ async def music_reg(request: Request):
     ranklist_scores_ranked = []
 
     for score in ranklist_scores:
-        profile = db.table("iidx_profile").get(where("iidx_id") == score["iidx_id"])
+        profile = db.table("iidx_profile").get(
+            (where("iidx_id") == score["iidx_id"]) & (where("game_version") == game_version)
+        )
 
-        if profile is None or str(game_version) not in profile["version"]:
+        if profile is None:
             continue
 
-        game_profile = profile["version"][str(game_version)]
+        game_profile = profile
 
         ranklist_scores_ranked.append(
             {

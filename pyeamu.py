@@ -83,15 +83,18 @@ if name == "nt":
 
 
 if __name__ == "__main__":
-    print(
-        """
+    try:
+        print(
+            """
  █▄ ▄█ █▀█ █▄ █ █▄▀ ▀██ ▀▄▀
  █ ▀ █ █▄█ █ ▀█ █ █ ▄▄█  █
 
  ██▄ █ █ ▄▀▀ ▄█ █▄ █ ▀██ ▀█▀
  █▄█ ▀▄█ ▄██  █ █ ▀█ ▄▄█ █▄▄
 """
-    )
+        )
+    except UnicodeEncodeError:
+        print("MONKEYBUSINESS")
     print()
     print("\033[1mGame Config\033[0m:")
     for server_services_url in server_services_urls:

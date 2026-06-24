@@ -1,6 +1,6 @@
 import time
 
-from tinydb import Query, where
+from core_database import Query, where
 
 from fastapi import APIRouter, Request, Response
 
@@ -11,8 +11,10 @@ router = APIRouter(prefix="/local2", tags=["local2"])
 router.model_whitelist = ["LDJ"]
 
 
-def get_profile(iidx_id):
-    return get_db().table("iidx_profile").get(where("iidx_id") == iidx_id)
+def get_profile(iidx_id, game_version):
+    return get_db().table("iidx_profile").get(
+        (where("iidx_id") == iidx_id) & (where("game_version") == game_version)
+    )
 
 
 @router.post("/{gameinfo}/IIDX30grade/raised")
@@ -45,8 +47,7 @@ async def iidx30grade_raised(request: Request):
         },
     )
 
-    profile = get_profile(iidx_id)
-    game_profile = profile["version"].get(str(game_version), {})
+    profile = get_profile(iidx_id, game_version)
 
     best_class = db.table("iidx_class_best").get(
         (where("iidx_id") == iidx_id)
@@ -86,7 +87,7 @@ async def iidx30grade_raised(request: Request):
             [record["gtype"], record["gid"], record["cstage"], record["achi"]]
         )
 
-    game_profile["grade_values"] = grades
+    profile["grade_values"] = grades
 
     grade_sp = db.table("iidx_class_best").search(
         (where("game_version") == game_version)
@@ -95,7 +96,7 @@ async def iidx30grade_raised(request: Request):
         & (where("cstage") == 4)
     )
 
-    game_profile["grade_single"] = max([x["gid"] for x in grade_sp], default=-1)
+    profile["grade_single"] = max([x["gid"] for x in grade_sp], default=-1)
 
     grade_dp = db.table("iidx_class_best").search(
         (where("game_version") == game_version)
@@ -104,11 +105,12 @@ async def iidx30grade_raised(request: Request):
         & (where("cstage") == 4)
     )
 
-    game_profile["grade_double"] = max([x["gid"] for x in grade_dp], default=-1)
+    profile["grade_double"] = max([x["gid"] for x in grade_dp], default=-1)
 
-    profile["version"][str(game_version)] = game_profile
-
-    db.table("iidx_profile").upsert(profile, where("game_version") == game_version)
+    db.table("iidx_profile").upsert(
+        profile,
+        (where("iidx_id") == iidx_id) & (where("game_version") == game_version)
+    )
 
     response = E.response(E.IIDX30grade(pnum=1))
 

@@ -2,25 +2,14 @@ import time
 from os import stat
 from shutil import copy
 
-from tinydb import TinyDB
-from tinydb.middlewares import CachingMiddleware
-from tinydb.storages import JSONStorage
+from core_database import SQLiteDB
 
-storage = CachingMiddleware(JSONStorage)
-storage.WRITE_CACHE_SIZE = 5000
-
-infile = "db.json"
-outfile = f"db_{round(time.time())}.json"
+infile = "db.sqlite3"
+outfile = f"db_{round(time.time())}.sqlite3"
 
 copy(infile, outfile)
 
-db = TinyDB(
-    infile,
-    indent=2,
-    encoding="utf-8",
-    ensure_ascii=False,
-    storage=storage,
-)
+db = SQLiteDB(infile)
 
 start_size = stat(infile).st_size
 
