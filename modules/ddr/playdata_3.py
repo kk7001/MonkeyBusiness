@@ -12,7 +12,7 @@ from core_database import get_db
 
 from os import path
 import json
-from modules.core.cardmng import get_profile
+from modules.core.cardmng import get_profile, resolve_card
 
 router = APIRouter(prefix="/local2", tags=["local2"])
 router.model_whitelist = ["MDX"]
@@ -214,7 +214,8 @@ async def playdata_3_playerdata_load(request: Request):
 
     all_scores = {}
     if refid != default:
-        p = get_profile('MDX', game_version, refid)
+        uid, _ = resolve_card(refid)
+        p = get_profile('MDX', game_version, uid)
         if p is not None:
             ddr_id = p["ddr_id"]
 
@@ -497,7 +498,7 @@ async def playdata_3_playerdata_new(request: Request):
 
     db.table("ddr_profile").upsert(
         all_profiles_for_card,
-        (where("card") == refid) & (where("game_version") == game_version),
+        (where("uid") == refid) & (where("game_version") == game_version),
     )
 
 
@@ -525,7 +526,8 @@ async def playdata_3_playerdata_save(request: Request):
     refid = data.find("refid").text
     savekind = int(data.find("savekind").text)
 
-    profile = get_profile('MDX', game_version, refid)
+    uid, _ = resolve_card(refid)
+    profile = get_profile('MDX', game_version, uid)
 
     db = get_db()
 
@@ -544,7 +546,7 @@ async def playdata_3_playerdata_save(request: Request):
                 profile["customize"] = customize_settings
             get_db().table("ddr_profile").upsert(
                 profile,
-                (where("card") == refid) & (where("game_version") == game_version),
+                (where("uid") == refid) & (where("game_version") == game_version),
             )
 
         elif savekind == 2 and retrycnt == 0:

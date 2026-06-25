@@ -25,7 +25,7 @@ def get_game_profile_by_id(iidx_id, game_version):
 
 
 def get_id_from_profile(cid):
-    profiles = get_db().table("iidx_profile").search(where("card") == cid)
+    profiles = get_db().table("iidx_profile").search(where("uid") == cid)
     iidx_id = 0
     for p in profiles:
         if p.get("iidx_id", 0) != 0:
@@ -721,7 +721,7 @@ async def iidx30pc_oldget(request: Request):
     cid = request_info["root"][0].attrib["cid"]
     old_version = request_info["game_version"] - 1
     old_profile = get_db().table("iidx_profile").get(
-        (where("card") == cid) & (where("game_version") == old_version)
+        (where("uid") == cid) & (where("game_version") == old_version)
     )
     if old_profile is not None:
         djid, djid_split = get_id_from_profile(cid)
@@ -1058,7 +1058,7 @@ async def iidx30pc_save(request: Request):
 
     get_db().table("iidx_profile").upsert(
         game_profile,
-        (where("card") == game_profile["card"]) & (where("game_version") == game_version)
+        (where("uid") == game_profile["card"]) & (where("game_version") == game_version)
     )
 
     response = E.response(E.IIDX30pc(iidxid=xid, cltype=clt))
@@ -1098,7 +1098,7 @@ async def iidx30pc_reg(request: Request):
     db = get_db().table("iidx_profile")
 
     # Check if profile already exists for this (card, game_version)
-    existing = db.get((where("card") == cid) & (where("game_version") == game_version))
+    existing = db.get((where("uid") == cid) & (where("game_version") == game_version))
     if existing is not None:
         card, card_split = get_id_from_profile(cid)
         response = E.response(E.IIDX30pc(id=card, id_str=card_split))
@@ -1106,7 +1106,7 @@ async def iidx30pc_reg(request: Request):
         return Response(content=response_body, headers=response_headers)
 
     # Get or create iidx_id
-    any_profile = db.get(where("card") == cid)
+    any_profile = db.get(where("uid") == cid)
     if any_profile is not None and any_profile.get("iidx_id", 0) != 0:
         iidx_id = any_profile["iidx_id"]
     else:
@@ -1293,7 +1293,7 @@ async def iidx30pc_reg(request: Request):
         "dp_rival_5_iidx_id": 0,
         "dp_rival_6_iidx_id": 0,
     }
-    db.upsert(profile, (where("card") == cid) & (where("game_version") == game_version))
+    db.upsert(profile, (where("uid") == cid) & (where("game_version") == game_version))
 
     card, card_split = get_id_from_profile(cid)
 

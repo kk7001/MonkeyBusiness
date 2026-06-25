@@ -17,7 +17,7 @@ router.model_whitelist = ["KFC"]
 
 
 def get_profile(cid):
-    return get_db().table("sdvx_profile").get(where("card") == cid)
+    return get_db().table("sdvx_profile").get(where("uid") == cid)
 
 
 def get_game_profile(cid, game_version):
@@ -27,7 +27,7 @@ def get_game_profile(cid, game_version):
 
 
 def get_id_from_profile(cid):
-    profile = get_db().table("sdvx_profile").get(where("card") == cid)
+    profile = get_db().table("sdvx_profile").get(where("uid") == cid)
 
     djid = "%08d" % profile["sdvx_id"]
     djid_split = "-".join([djid[:4], djid[4:]])
@@ -172,7 +172,7 @@ async def game_sv_new(ver: str, request: Request):
     name = root.find("name").text
 
     db = get_db().table("sdvx_profile")
-    all_profiles_for_card = db.get(Query().card == dataid)
+    all_profiles_for_card = db.get(Query().uid == dataid)
 
     if all_profiles_for_card is None:
         all_profiles_for_card = {"card": dataid, "version": {}}
@@ -222,7 +222,7 @@ async def game_sv_new(ver: str, request: Request):
         "params": [],
     }
 
-    db.upsert(all_profiles_for_card, where("card") == dataid)
+    db.upsert(all_profiles_for_card, where("uid") == dataid)
 
     response = E.response(
         E.game(
@@ -583,7 +583,7 @@ async def game_sv_save(ver: str, request: Request):
 
     profile["version"][str(game_version)] = game_profile
 
-    get_db().table("sdvx_profile").upsert(profile, where("card") == dataid)
+    get_db().table("sdvx_profile").upsert(profile, where("uid") == dataid)
 
     response = E.response(
         E.game(),

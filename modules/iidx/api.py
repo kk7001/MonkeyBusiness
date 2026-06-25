@@ -10,7 +10,7 @@ from typing import Optional
 import config
 import utils.card as conv
 import utils.musicdata_tool as mdt
-from modules.core.cardmng import set_card_pin
+from modules.core.cardmng import resolve_card
 
 import xml.etree.ElementTree as ET
 import json
@@ -99,13 +99,11 @@ async def iidx_profile_id_patch(iidx_id: str, item: IIDX_Profile_Main_Items):
     profile = get_db().table("iidx_profile").get(where("iidx_id") == iidx_id)
 
     if profile is not None:
-        profile["card"] = item.card
-        profile.pop("pin", None)  # PIN is now managed in unified paseli table
-
+        profile.pop("pin", None)
         get_db().table("iidx_profile").upsert(profile, where("iidx_id") == iidx_id)
-
-        # Update PIN in unified paseli table
-        set_card_pin(profile["card"], item.pin)
+        # Ensure card mapping exists
+        if item.card:
+            resolve_card(item.card)
     return Response(status_code=204)
 
 
@@ -204,7 +202,7 @@ async def iidx_card_to_profile(card: str):
         card = "".join([c for c in card if c in conv.valid_characters])
         uid = conv.to_uid(card)
         kid = card
-    profile = get_db().table("iidx_profile").get(where("card") == uid)
+    profile = get_db().table("iidx_profile").get(where("uid") == uid)
     return profile
 
 

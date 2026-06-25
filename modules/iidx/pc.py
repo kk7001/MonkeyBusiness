@@ -18,7 +18,7 @@ def get_game_profile(cid, game_version, model="LDJ"):
 
 
 def get_id_from_profile(cid):
-    profiles = get_db().table("iidx_profile").search(where("card") == cid)
+    profiles = get_db().table("iidx_profile").search(where("uid") == cid)
     iidx_id = 0
     for p in profiles:
         if p.get("iidx_id", 0) != 0:
@@ -631,7 +631,7 @@ async def pc_save(request: Request):
 
     get_db().table("iidx_profile").upsert(
         game_profile,
-        (where("card") == game_profile["card"]) & (where("game_version") == game_version)
+        (where("uid") == game_profile["card"]) & (where("game_version") == game_version)
     )
 
     response = E.response(E.pc(iidxid=xid, cltype=clt))
@@ -671,7 +671,7 @@ async def pc_reg(request: Request):
     db = get_db().table("iidx_profile")
 
     # Check if profile already exists for this (card, game_version)
-    existing = db.get((where("card") == cid) & (where("game_version") == game_version))
+    existing = db.get((where("uid") == cid) & (where("game_version") == game_version))
     if existing is not None:
         card, card_split = get_id_from_profile(cid)
         response = E.response(E.pc(id=card, id_str=card_split))
@@ -679,7 +679,7 @@ async def pc_reg(request: Request):
         return Response(content=response_body, headers=response_headers)
 
     # Get or create iidx_id
-    any_profile = db.get(where("card") == cid)
+    any_profile = db.get(where("uid") == cid)
     if any_profile is not None and any_profile.get("iidx_id", 0) != 0:
         iidx_id = any_profile["iidx_id"]
     else:
@@ -866,7 +866,7 @@ async def pc_reg(request: Request):
             "_hide_play_count": 0,
             "_hide_rival_info": 1,
         }
-    db.upsert(profile, (where("card") == cid) & (where("game_version") == game_version))
+    db.upsert(profile, (where("uid") == cid) & (where("game_version") == game_version))
 
     card, card_split = get_id_from_profile(cid)
 

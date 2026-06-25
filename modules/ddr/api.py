@@ -9,7 +9,7 @@ from pydantic import BaseModel
 import config
 import utils.card as conv
 from utils.lz77 import lz77_decode
-from modules.core.cardmng import set_card_pin
+from modules.core.cardmng import resolve_card
 
 import lxml.etree as ET
 import json
@@ -71,13 +71,10 @@ async def ddr_profile_id_patch(ddr_id: str, item: DDR_Profile_Main_Items):
     ddr_id = int("".join([i for i in ddr_id if i.isnumeric()]))
     profile = get_db().table("ddr_profile").get(where("ddr_id") == ddr_id)
 
-    profile["card"] = item.card
-    profile.pop("pin", None)  # PIN is now managed in unified paseli table
-
+    profile.pop("pin", None)
     get_db().table("ddr_profile").upsert(profile, where("ddr_id") == ddr_id)
-
-    # Update PIN in unified paseli table
-    set_card_pin(profile["card"], item.pin)
+    if item.card:
+        resolve_card(item.card)
     return Response(status_code=204)
 
 
@@ -146,7 +143,7 @@ async def ddr_card_to_profile(card: str):
         card = "".join([c for c in card if c in conv.valid_characters])
         uid = conv.to_uid(card)
         kid = card
-    profile = get_db().table("ddr_profile").get(where("card") == uid)
+    profile = get_db().table("ddr_profile").get(where("uid") == uid)
     return profile
 
 

@@ -13,7 +13,7 @@ router.model_whitelist = ["M32"]
 
 
 def get_profile(cid):
-    return get_db().table("gitadora_profile").get(where("card") == cid)
+    return get_db().table("gitadora_profile").get(where("uid") == cid)
 
 
 def get_game_profile(cid, game_version):

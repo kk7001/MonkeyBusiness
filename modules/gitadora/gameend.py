@@ -10,7 +10,7 @@ router.model_whitelist = ["M32"]
 
 
 def get_profile(cid):
-    return get_db().table("gitadora_profile").get(where("card") == cid)
+    return get_db().table("gitadora_profile").get(where("uid") == cid)
 
 
 def get_game_profile(cid, game_version):
@@ -194,7 +194,7 @@ async def gitadora_gameend_regist(ver: str, request: Request):
 
         profile["version"][str(game_version)] = game_profile
 
-        get_db().table("gitadora_profile").upsert(profile, where("card") == dataid)
+        get_db().table("gitadora_profile").upsert(profile, where("uid") == dataid)
 
         stage = player.findall("stage")
 

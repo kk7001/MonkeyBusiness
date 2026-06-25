@@ -12,7 +12,7 @@ router.model_whitelist = ["PAN"]
 
 
 def get_profile(cid):
-    return get_db().table("nostalgia_profile").get(where("card") == cid)
+    return get_db().table("nostalgia_profile").get(where("uid") == cid)
 
 
 def get_game_profile(cid, game_version):
@@ -33,7 +33,7 @@ async def op3_player_regist_playdata(request: Request):
     name = root.find("name").text
 
     db = get_db().table("nostalgia_profile")
-    all_profiles_for_card = db.get(Query().card == dataid)
+    all_profiles_for_card = db.get(Query().uid == dataid)
 
     if all_profiles_for_card is None:
         all_profiles_for_card = {"card": dataid, "version": {}}
@@ -87,7 +87,7 @@ async def op3_player_regist_playdata(request: Request):
         "param2": [0, 0, 0, 0, 0, 0, 0, 0],
     }
 
-    db.upsert(all_profiles_for_card, where("card") == dataid)
+    db.upsert(all_profiles_for_card, where("uid") == dataid)
 
     response = E.response(
         E.regist_playdata(
@@ -552,7 +552,7 @@ async def op3_player_set_total_result(request: Request):
 
     profile["version"][str(game_version)] = game_profile
 
-    get_db().table("nostalgia_profile").upsert(profile, where("card") == refid)
+    get_db().table("nostalgia_profile").upsert(profile, where("uid") == refid)
 
     response = E.response(E.set_total_result(E.player()))
 

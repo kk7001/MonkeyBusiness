@@ -11,7 +11,7 @@ from core_common import core_process_request, core_prepare_response, E
 from core_database import get_db
 
 from base64 import b64decode, b64encode
-from modules.core.cardmng import get_profile
+from modules.core.cardmng import get_profile, resolve_card
 
 router = APIRouter(prefix="/local2", tags=["local2"])
 router.model_whitelist = ["MDX"]
@@ -68,7 +68,7 @@ async def playerdata_2_usergamedata_advanced(request: Request):
 
         db.table("ddr_profile").upsert(
             all_profiles_for_card,
-            (where("card") == refid) & (where("game_version") == game_version),
+            (where("uid") == refid) & (where("game_version") == game_version),
         )
 
         response = E.response(
@@ -122,7 +122,7 @@ async def playerdata_2_usergamedata_advanced(request: Request):
         response = E.response(
             E.playerdata_2(
                 E.result(0, __type="s32"),
-                E.is_new(1 if all_profiles_for_card is None else 0, __type="bool"),
+                E.is_new(1 if "calories_disp" not in all_profiles_for_card else 0, __type="bool"),
                 E.is_refid_locked(0, __type="bool"),
                 E.eventdata_count_all(0, __type="s16"),
                 E.opt_timing_disp(all_profiles_for_card.get("opt_timing_disp", -1), __type="s32"),
@@ -402,7 +402,8 @@ async def playerdata_2_usergamedata_advanced(request: Request):
             )
 
         elif int(data.find("isgameover").text) == 1:
-            profile = get_profile('MDX', game_version, refid)
+            uid, _ = resolve_card(refid)
+            profile = get_profile('MDX', game_version, uid)
 
             single_grade = int(data.find("grade/single_grade").text)
             double_grade = int(data.find("grade/double_grade").text)
@@ -441,7 +442,7 @@ async def playerdata_2_usergamedata_advanced(request: Request):
 
             db.table("ddr_profile").upsert(
                 profile,
-                (where("card") == refid) & (where("game_version") == game_version),
+                (where("uid") == refid) & (where("game_version") == game_version),
             )
 
         response = E.response(
@@ -750,7 +751,7 @@ async def playerdata_2_usergamedata_send(request: Request):
 
     get_db().table("ddr_profile").upsert(
         profile,
-        (where("card") == cid) & (where("game_version") == game_version),
+        (where("uid") == cid) & (where("game_version") == game_version),
     )
 
     response = E.response(

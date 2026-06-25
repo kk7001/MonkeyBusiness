@@ -7,14 +7,14 @@ Special types:
 """
 
 # =============================================================================
-# Profile tables — one row per (card, game_version)
-# All version fields become direct columns. card-level IDs (iidx_id, etc.) are
+# Profile tables — one row per (uid, game_version)
+# All version fields become direct columns. uid-level IDs (iidx_id, etc.) are
 # duplicated per row (denormalized) for simplicity.
 # =============================================================================
 
 IIDX_PROFILE = {
     "doc_id":          "INTEGER PRIMARY KEY AUTOINCREMENT",
-    "card":            "TEXT NOT NULL",
+    "uid": "INTEGER NOT NULL",
     "game_version":    "INTEGER NOT NULL DEFAULT 0",
     "iidx_id":         "INTEGER DEFAULT 0",
     # Basic profile
@@ -380,7 +380,7 @@ IIDX_CLASS_BEST = {
 
 DDR_PROFILE = {
     "doc_id":            "INTEGER PRIMARY KEY AUTOINCREMENT",
-    "card":              "TEXT NOT NULL",
+    "uid": "INTEGER NOT NULL",
     "game_version":      "INTEGER NOT NULL DEFAULT 0",
     "ddr_id":            "INTEGER DEFAULT 0",
     # Per-version fields
@@ -484,7 +484,7 @@ DDR_SCORES_BEST = {
 
 SDVX_PROFILE = {
     "doc_id":               "INTEGER PRIMARY KEY AUTOINCREMENT",
-    "card":                 "TEXT NOT NULL",
+    "uid": "INTEGER NOT NULL",
     "game_version":         "INTEGER NOT NULL DEFAULT 0",
     "sdvx_id":              "INTEGER DEFAULT 0",
     "name":                 "INTEGER DEFAULT 0",
@@ -586,7 +586,7 @@ SDVX_SCORES_BEST = {
 
 DRS_PROFILE = {
     "doc_id":       "INTEGER PRIMARY KEY AUTOINCREMENT",
-    "card":         "TEXT NOT NULL",
+    "uid": "INTEGER NOT NULL",
     "game_version": "INTEGER NOT NULL DEFAULT 0",
     "drs_id":       "INTEGER DEFAULT 0",
     "name":         "INTEGER DEFAULT 0",
@@ -641,7 +641,7 @@ DRS_SCORES_BEST = {
 
 NOSTALGIA_PROFILE = {
     "doc_id":            "INTEGER PRIMARY KEY AUTOINCREMENT",
-    "card":              "TEXT NOT NULL",
+    "uid": "INTEGER NOT NULL",
     "game_version":      "INTEGER NOT NULL DEFAULT 0",
     "nostalgia_id":      "INTEGER DEFAULT 0",
     "name":              "INTEGER DEFAULT 0",
@@ -758,7 +758,7 @@ NOSTALGIA_SCORES_BEST = {
 
 GITADORA_PROFILE = {
     "doc_id":                     "INTEGER PRIMARY KEY AUTOINCREMENT",
-    "card":                       "TEXT NOT NULL",
+    "uid": "INTEGER NOT NULL",
     "game_version":               "INTEGER NOT NULL DEFAULT 0",
     "gitadora_id":                "INTEGER DEFAULT 0",
     "name":                       "TEXT DEFAULT 'kors k'",

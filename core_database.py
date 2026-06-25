@@ -438,10 +438,12 @@ class TableProxy:
 class SQLiteDB:
     def __init__(self, db_path="db.sqlite3"):
         self.db_path = db_path
-        self.conn = sqlite3.connect(db_path, check_same_thread=False)
+        self.conn = sqlite3.connect(db_path, check_same_thread=False, timeout=10)
         self.conn.row_factory = sqlite3.Row
         self.conn.execute("PRAGMA journal_mode=WAL")
         self.conn.execute("PRAGMA synchronous=NORMAL")
+        self.conn.execute("PRAGMA busy_timeout=5000")
+        self.conn.execute("PRAGMA wal_autocheckpoint=1000")
         self._lock = threading.Lock()
 
     def table(self, name, schema=None):

@@ -12,7 +12,7 @@ router.model_whitelist = ["M32"]
 
 
 def get_profile(cid):
-    return get_db().table("gitadora_profile").get(where("card") == cid)
+    return get_db().table("gitadora_profile").get(where("uid") == cid)
 
 
 def get_game_profile(cid, game_version):
@@ -79,7 +79,7 @@ async def gitadora_cardutil_regist(ver: str, request: Request):
     dataid = data.find("refid").text
 
     db = get_db().table("gitadora_profile")
-    all_profiles_for_card = db.get(Query().card == dataid)
+    all_profiles_for_card = db.get(Query().uid == dataid)
 
     if "gitadora_id" not in all_profiles_for_card:
         gitadora_id = random.randint(10000000, 99999999)
@@ -249,7 +249,7 @@ async def gitadora_cardutil_regist(ver: str, request: Request):
             # "skindata_skin": [0] * 100,
         }
 
-    db.upsert(all_profiles_for_card, where("card") == dataid)
+    db.upsert(all_profiles_for_card, where("uid") == dataid)
 
     response = E.response(
         E(

@@ -5,6 +5,7 @@ from core_database import where
 
 from core_common import core_process_request, core_prepare_response, E
 from core_database import get_db
+from modules.core.cardmng import resolve_card
 from modules.core.paseli import get_balance, add_spend
 
 router = APIRouter(prefix="/core", tags=["eacoin"])
@@ -17,16 +18,17 @@ payments = {}
 async def eacoin_checkin(request: Request):
     request_info = await core_process_request(request)
     pcbid = request_info["root"].attrib["srcid"]
-    cardid = request_info["root"][0].find("cardid").text
+    card_id = request_info["root"][0].find("cardid").text
 
     op = get_db().table("shop").get(where("pcbid") == pcbid)
     op = {} if op is None else op
 
-    bal = get_balance(cardid)
+    uid, _ = resolve_card(card_id)
+    bal = get_balance(uid)
 
     global sessid
     sessid += 1
-    payments[sessid] = cardid
+    payments[sessid] = uid
 
     response = E.response(
         E.eacoin(
@@ -47,9 +49,7 @@ async def eacoin_checkin(request: Request):
 @router.post("/{gameinfo}/eacoin/checkout")
 async def eacoin_checkout(request: Request):
     request_info = await core_process_request(request)
-
     response = E.response(E.eacoin())
-
     response_body, response_headers = await core_prepare_response(request, response)
     return Response(content=response_body, headers=response_headers)
 
@@ -60,10 +60,9 @@ async def eacoin_consume(request: Request):
     sessid = int(request_info["root"][0].find("sessid").text)
     payment = int(request_info["root"][0].find("payment").text)
 
-    cardid = payments.get(sessid, None)
+    uid = payments.get(sessid, None)
 
-    # fallback if server is restarted mid-round for IIDX movie or gacha purchases
-    if cardid is None:
+    if uid is None:
         response = E.response(
             E.eacoin(
                 E.acstatus(0, __type="u8"),
@@ -71,11 +70,10 @@ async def eacoin_consume(request: Request):
                 E.balance(config.paseli, __type="s32"),
             )
         )
-
         response_body, response_headers = await core_prepare_response(request, response)
         return Response(content=response_body, headers=response_headers)
 
-    new_balance = add_spend(cardid, payment)
+    new_balance = add_spend(uid, payment)
 
     response = E.response(
         E.eacoin(
@@ -85,8 +83,6 @@ async def eacoin_consume(request: Request):
         )
     )
 
-    # del payments[sessid]
-
     response_body, response_headers = await core_prepare_response(request, response)
     return Response(content=response_body, headers=response_headers)
 
@@ -94,13 +90,11 @@ async def eacoin_consume(request: Request):
 @router.post("/{gameinfo}/eacoin/getbalance")
 async def eacoin_getbalance(request: Request):
     request_info = await core_process_request(request)
-
     response = E.response(
         E.eacoin(
             E.acstatus(0, __type="u8"),
             E.balance(config.paseli, __type="s32"),
         )
     )
-
     response_body, response_headers = await core_prepare_response(request, response)
     return Response(content=response_body, headers=response_headers)
