@@ -4,3 +4,5 @@
 /*.db
 .venv/
 webui/
+*.sqlite3
+*.sqlite3-*
