@@ -68,7 +68,7 @@ def lookup_card(card_id):
         "SELECT uid, pin FROM card_map WHERE card_id = ?", (card_id,)
     ).fetchone()
     if row:
-        return row["uid"], row.get("pin")
+        return row["uid"], row["pin"]
     return None, None
 
 
