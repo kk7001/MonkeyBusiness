@@ -59,8 +59,9 @@ def _ensure_card_map():
     conn.commit()
 
 
-def resolve_card(card_id):
-    """Look up (uid, pin) for a physical card. Creates new UID if card is new."""
+def lookup_card(card_id):
+    """Look up (uid, pin) for a card. Returns (None, None) if card is unknown.
+    Does NOT create UID — used by inquire/authpass."""
     _ensure_card_map()
     conn = get_db().conn
     row = conn.execute(
@@ -68,8 +69,17 @@ def resolve_card(card_id):
     ).fetchone()
     if row:
         return row["uid"], row.get("pin")
-    # New card: create UID and entry
+    return None, None
+
+
+def resolve_card(card_id):
+    """Look up or create (uid, pin) for a card. Creates UID if card is new.
+    Used by getrefid and eacoin checkin."""
+    uid, pin = lookup_card(card_id)
+    if uid is not None:
+        return uid, pin
     uid = randint(10000000, 99999999)
+    conn = get_db().conn
     conn.execute(
         "INSERT INTO card_map (card_id, uid) VALUES (?, ?)", (card_id, uid)
     )
@@ -79,12 +89,8 @@ def resolve_card(card_id):
 
 def get_card_pin(card_id):
     """Get PIN for a physical card."""
-    _ensure_card_map()
-    conn = get_db().conn
-    row = conn.execute(
-        "SELECT pin FROM card_map WHERE card_id = ?", (card_id,)
-    ).fetchone()
-    return row["pin"] if row else None
+    _, pin = lookup_card(card_id)
+    return pin
 
 
 def set_card_pin(card_id, pin):
@@ -186,21 +192,24 @@ async def cardmng_inquire(request: Request):
     game_version = request_info["game_version"]
     target_table = get_target_table(request_info["model"])
 
-    # Resolve card to uid
-    uid, _ = resolve_card(card_id)
-
-    # Check if profile exists for this (uid, game_version)
-    profile = get_db().table(target_table).get(
-        (where("uid") == uid) & (where("game_version") == game_version)
-    )
-
-    if profile:
-        binded = 1
-        newflag = 0
-        status = 0
-    else:
+    # Check if card is known (already registered in card_map)
+    uid, pin = lookup_card(card_id)
+    if uid is None:
+        # Brand new card — never seen before
         binded = 0
         newflag = 1
+        status = 112
+    else:
+        # Card is known; check if this game has a profile
+        profile = get_db().table(target_table).get(
+            (where("uid") == uid) & (where("game_version") == game_version)
+        )
+        if profile:
+            binded = 1
+            newflag = 0
+        else:
+            binded = 0
+            newflag = 1
         status = 0
 
     response = E.response(
